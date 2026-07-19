@@ -12,10 +12,8 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
-  Bell,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
-import { enablePushNotifications } from "./push";
 
 // ---------- helpers ----------
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -180,18 +178,6 @@ export default function App() {
     supabase.from("tasks").delete().eq("id", id).then(() => {});
   }
 
-  const [pushStatus, setPushStatus] = useState("idle"); // idle | busy | on | error
-
-  async function handleEnablePush() {
-    setPushStatus("busy");
-    try {
-      await enablePushNotifications(userId);
-      setPushStatus("on");
-    } catch (e) {
-      setPushStatus("error");
-    }
-  }
-
   const pending = tasks.filter((t) => !t.done);
   const dated = pending.filter((t) => t.date).sort((a, b) => (a.date + (a.time || "")) < (b.date + (b.time || "")) ? -1 : 1);
   const undated = pending.filter((t) => !t.date);
@@ -226,15 +212,6 @@ export default function App() {
         {NAV.map((n) => (
           <NavButton key={n.key} n={n} active={view === n.key} onClick={() => setView(n.key)} />
         ))}
-        <button
-          onClick={handleEnablePush}
-          disabled={pushStatus === "on" || pushStatus === "busy"}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[#9C9791] mt-2"
-        >
-          <Bell size={16} style={{ color: pushStatus === "on" ? "#D9C36A" : "#9C9791" }} />
-          {pushStatus === "on" ? "Bildirimler açık" : pushStatus === "busy" ? "Açılıyor..." : "Bildirimleri aç"}
-        </button>
-        {pushStatus === "error" && <div className="text-xs text-[#C4634F] px-3">İzin verilmedi veya desteklenmiyor.</div>}
         <button onClick={() => supabase.auth.signOut()} className="mt-auto text-xs text-[#6E7580] text-left px-3 py-2">
           Çıkış yap
         </button>
@@ -244,9 +221,6 @@ export default function App() {
       <main className="flex-1 flex flex-col pb-20 md:pb-0">
         <header className="px-5 pt-6 pb-4 md:hidden flex items-center justify-between">
           <div className="text-2xl" style={{ fontFamily: "Georgia, serif" }}>Fiş</div>
-          <button onClick={handleEnablePush} disabled={pushStatus === "on" || pushStatus === "busy"}>
-            <Bell size={20} style={{ color: pushStatus === "on" ? "#D9C36A" : "#9C9791" }} />
-          </button>
         </header>
 
         {view === "today" && (

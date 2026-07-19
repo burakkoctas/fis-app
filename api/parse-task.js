@@ -32,8 +32,8 @@ export default async function handler(req, res) {
               type: "OBJECT",
               properties: {
                 title: { type: "STRING" },
-                date: { type: "STRING", nullable: true },
-                time: { type: "STRING", nullable: true },
+                date: { type: "STRING" },
+                time: { type: "STRING" },
                 priority: { type: "STRING", enum: ["low", "med", "high"] },
               },
               required: ["title", "priority"],

@@ -266,57 +266,83 @@ export default function App() {
 }
 
 function LoginScreen() {
+  const [mode, setMode] = useState("login"); // "login" | "register"
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
 
-  async function sendLink() {
-    if (!email.trim()) return;
+  async function handleSubmit() {
+    if (!email.trim() || !password.trim()) return;
     setBusy(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: window.location.origin },
-    });
+    setSuccess(null);
+
+    if (mode === "login") {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (error) setError("E-posta veya şifre hatalı.");
+    } else {
+      const { error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+      if (error) setError(error.message);
+      else setSuccess("Hesap oluşturuldu! Şimdi giriş yapabilirsin.");
+    }
     setBusy(false);
-    if (error) setError(error.message);
-    else setSent(true);
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#1C1B1F] text-[#EDEAE4] px-6">
       <div className="w-full max-w-xs">
         <div className="text-2xl mb-1" style={{ fontFamily: "Georgia, serif" }}>Fiş</div>
-        <div className="text-xs text-[#9C9791] mb-6">Telefon ve bilgisayarda aynı listeyi görmek için e-postanla giriş yap.</div>
-        {sent ? (
-          <div className="text-sm text-[#D9C36A]">
-            {email} adresine bir giriş bağlantısı gönderdik. Gelen kutunu (ve spam'i) kontrol et.
-          </div>
-        ) : (
-          <>
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendLink()}
-              placeholder="ornek@eposta.com"
-              type="email"
-              className="w-full bg-[#262429] border border-[#3A373D] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#D9C36A] mb-3"
-            />
-            <button
-              onClick={sendLink}
-              disabled={busy}
-              className="w-full py-2 rounded-xl bg-[#D9C36A] text-[#1C1B1F] text-sm font-medium"
-            >
-              {busy ? "Gönderiliyor..." : "Giriş bağlantısı gönder"}
-            </button>
-            {error && <div className="text-xs text-[#C4634F] mt-2">{error}</div>}
-          </>
-        )}
+        <div className="text-xs text-[#9C9791] mb-6">
+          {mode === "login" ? "Hesabınla giriş yap." : "Yeni hesap oluştur."}
+        </div>
+
+        <input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+          placeholder="ornek@eposta.com"
+          type="email"
+          className="w-full bg-[#262429] border border-[#3A373D] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#D9C36A] mb-2"
+        />
+        <input
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+          placeholder="Şifre (en az 6 karakter)"
+          type="password"
+          className="w-full bg-[#262429] border border-[#3A373D] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#D9C36A] mb-3"
+        />
+
+        <button
+          onClick={handleSubmit}
+          disabled={busy}
+          className="w-full py-2 rounded-xl bg-[#D9C36A] text-[#1C1B1F] text-sm font-medium mb-3"
+        >
+          {busy ? "Lütfen bekle..." : mode === "login" ? "Giriş yap" : "Hesap oluştur"}
+        </button>
+
+        {error && <div className="text-xs text-[#C4634F] mb-2">{error}</div>}
+        {success && <div className="text-xs text-[#6BBF7A] mb-2">{success}</div>}
+
+        <button
+          onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(null); setSuccess(null); }}
+          className="text-xs text-[#9C9791] underline"
+        >
+          {mode === "login" ? "Hesabın yok mu? Kayıt ol" : "Zaten hesabın var mı? Giriş yap"}
+        </button>
       </div>
     </div>
   );
 }
+
 
 function NavButton({ n, active, onClick }) {
   return (

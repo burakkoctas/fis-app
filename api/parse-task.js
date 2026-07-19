@@ -10,51 +10,48 @@ export default async function handler(req, res) {
     return;
   }
 
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    res.status(500).json({ error: "GROQ_API_KEY tanımlı değil (Vercel env variables)" });
+    res.status(500).json({ error: "GEMINI_API_KEY tanımlı değil (Vercel env variables)" });
     return;
   }
 
-  const systemPrompt = `Sen bir görev ayrıştırma asistanısın. Kullanıcının doğal dil görev metnini JSON formatına çevirirsin.
-Kuralllar:
-- Göreceli tarih ifadelerini (perşembe, yarın, gelecek hafta) verilen "şu an" bilgisine göre kesin YYYY-MM-DD tarihine çevir.
-- Saat belirtilmemişse "time" alanını null yap.
-- Tarih belirtilmemişse "date" alanını null yap.
-- Aciliyet belirtilmemişse priority "med" olsun.
-- "title" kısa ve eylem odaklı olsun, tarih/saat ifadelerini title'dan çıkar.
-- Sadece JSON döndür, başka hiçbir şey yazma.
-Format: {"title": "...", "date": "YYYY-MM-DD veya null", "time": "HH:MM veya null", "priority": "low|med|high"}`;
-
-  const userPrompt = `${context}\n\nGörev metni: "${rawText}"`;
+  const prompt = `${context}\n\nKullanıcının görev metni: "${rawText}"\n\nBunu ayrıştır. Göreceli tarih ifadelerini (perşembe, yarın, gelecek hafta) verilen "şu an" bilgisine göre kesin bir tarihe çevir. Saat belirtilmemişse time alanını boş bırak. Aciliyet belirtilmemişse priority "med" olsun. title kısa ve eylem odaklı olsun, tarih/saat ifadelerini title'dan çıkar.`;
 
   try {
-    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.1,
-      }),
-    });
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "OBJECT",
+              properties: {
+                title: { type: "STRING" },
+                date: { type: "STRING" },
+                time: { type: "STRING" },
+                priority: { type: "STRING", enum: ["low", "med", "high"] },
+              },
+              required: ["title", "priority"],
+            },
+          },
+        }),
+      }
+    );
 
-    const data = await groqRes.json();
-    if (!groqRes.ok) {
-      res.status(groqRes.status).json({ error: data?.error?.message || "Groq hatası" });
+    const data = await geminiRes.json();
+    if (!geminiRes.ok) {
+      res.status(geminiRes.status).json({ error: data?.error?.message || "Gemini hatası" });
       return;
     }
 
-    const text = data.choices?.[0]?.message?.content;
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) {
-      res.status(502).json({ error: "Groq'tan beklenen yanıt gelmedi" });
+      res.status(502).json({ error: "Gemini'den beklenen yanıt gelmedi" });
       return;
     }
 

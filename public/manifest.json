@@ -1,6 +1,6 @@
 {
-  "name": "Fiş — Yapılacaklar",
-  "short_name": "Fiş",
+  "name": "VakVak — Yapılacaklar",
+  "short_name": "VakVak",
   "description": "AI destekli yapılacaklar listesi",
   "start_url": "/",
   "display": "standalone",

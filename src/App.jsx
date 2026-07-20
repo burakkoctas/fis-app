@@ -329,7 +329,7 @@ function LoginScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#1C1B1F] text-[#EDEAE4] px-6">
       <div className="w-full max-w-xs">
-        <div className="text-2xl mb-1" style={{ fontFamily: "Georgia, serif" }}>Fiş</div>
+        <div className="text-2xl mb-1" style={{ fontFamily: "Georgia, serif" }}>VakVak</div>
         <div className="text-xs text-[#9C9791] mb-6">
           {mode === "login" ? "Hesabınla giriş yap." : "Yeni hesap oluştur."}
         </div>

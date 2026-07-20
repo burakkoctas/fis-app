@@ -58,7 +58,7 @@ async function loadState(userId) {
     id: r.id, title: r.title, date: r.date, time: r.time, priority: r.priority, done: r.done,
   }));
   out.habits = (habitRows || []).map((r) => ({
-    id: r.id, name: r.name, doneDates: r.done_dates || [],
+    id: r.id, name: r.name, doneDates: r.done_dates || [], time: r.time || null,
   }));
   return out;
 }
@@ -179,6 +179,16 @@ export default function App() {
     supabase.from("tasks").delete().eq("id", id).then(() => {});
   }
 
+  function toggleHabitToday(id) {
+    const today = todayISO();
+    const h = habits.find((x) => x.id === id);
+    if (!h) return;
+    const has = h.doneDates.includes(today);
+    const nextDates = has ? h.doneDates.filter((d) => d !== today) : [...h.doneDates, today];
+    setHabits((prev) => prev.map((x) => (x.id === id ? { ...x, doneDates: nextDates } : x)));
+    supabase.from("habits").update({ done_dates: nextDates }).eq("id", id).then(() => {});
+  }
+
   const [editingTask, setEditingTask] = useState(null);
 
   async function updateTask(updated) {
@@ -257,11 +267,13 @@ export default function App() {
             editTask={setEditingTask}
             editingTask={editingTask}
             updateTask={updateTask}
+            habits={habits}
+            toggleHabitToday={toggleHabitToday}
           />
         )}
 
         {view === "calendar" && <CalendarView tasks={pending} />}
-        {view === "habits" && <HabitsView habits={habits} setHabits={setHabits} userId={userId} />}
+        {view === "habits" && <HabitsView habits={habits} setHabits={setHabits} userId={userId} toggleHabitToday={toggleHabitToday} />}
         {view === "focus" && <FocusView />}
       </main>
 
@@ -384,7 +396,10 @@ function TodayView(props) {
     quick, setQuick, aiMode, setAiMode, aiBusy, aiError, onSubmit,
     pendingTask, confirmPending, cancelPending,
     dated, undated, done, toggleDone, removeTask, editTask, editingTask, updateTask,
+    habits, toggleHabitToday,
   } = props;
+  const today = todayISO();
+  const pendingHabits = (habits || []).filter((h) => !h.doneDates.includes(today));
 
   return (
     <div className="px-5 pt-4 md:pt-8 max-w-2xl w-full">
@@ -458,6 +473,28 @@ function TodayView(props) {
               <TaskRow key={t.id} t={t} onToggle={() => toggleDone(t.id)} onRemove={() => removeTask(t.id)} onEdit={() => editTask(t)} />
             )
           )}
+        </Section>
+      )}
+
+      {pendingHabits.length > 0 && (
+        <Section title="Alışkanlıklar">
+          {pendingHabits.map((h) => (
+            <div
+              key={h.id}
+              onClick={() => toggleHabitToday(h.id)}
+              className="flex items-center gap-3 bg-[#262429] border border-[#3A373D] rounded-lg px-3 py-2 cursor-pointer active:opacity-70"
+            >
+              <div
+                className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0"
+                style={{ borderColor: "#D9C36A" }}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm truncate">{h.name}</div>
+                {h.time && <div className="text-[11px] text-[#9C9791] mt-0.5">{h.time}</div>}
+              </div>
+              <Flame size={13} style={{ color: "#D9C36A", opacity: 0.6 }} />
+            </div>
+          ))}
         </Section>
       )}
     </div>
@@ -688,8 +725,9 @@ function CalendarView({ tasks }) {
 }
 
 // ---------- Habits view ----------
-function HabitsView({ habits, setHabits, userId }) {
+function HabitsView({ habits, setHabits, userId, toggleHabitToday }) {
   const [name, setName] = useState("");
+  const [time, setTime] = useState("");
   const today = todayISO();
 
   async function addHabit() {
@@ -697,21 +735,14 @@ function HabitsView({ habits, setHabits, userId }) {
     if (!n) return;
     const { data, error } = await supabase
       .from("habits")
-      .insert({ name: n, done_dates: [], user_id: userId })
+      .insert({ name: n, time: time || null, done_dates: [], user_id: userId })
       .select()
       .single();
     if (!error && data) {
-      setHabits((prev) => [...prev, { id: data.id, name: data.name, doneDates: data.done_dates || [] }]);
+      setHabits((prev) => [...prev, { id: data.id, name: data.name, doneDates: data.done_dates || [], time: data.time || null }]);
     }
     setName("");
-  }
-  function toggleToday(id) {
-    const h = habits.find((x) => x.id === id);
-    if (!h) return;
-    const has = h.doneDates.includes(today);
-    const nextDates = has ? h.doneDates.filter((d) => d !== today) : [...h.doneDates, today];
-    setHabits((prev) => prev.map((x) => (x.id === id ? { ...x, doneDates: nextDates } : x)));
-    supabase.from("habits").update({ done_dates: nextDates }).eq("id", id).then(() => {});
+    setTime("");
   }
   function removeHabit(id) {
     setHabits((prev) => prev.filter((h) => h.id !== id));
@@ -729,7 +760,7 @@ function HabitsView({ habits, setHabits, userId }) {
 
   return (
     <div className="px-5 pt-4 md:pt-8 max-w-2xl w-full">
-      <div className="flex gap-2 mb-5">
+      <div className="flex gap-2 mb-2">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -737,10 +768,18 @@ function HabitsView({ habits, setHabits, userId }) {
           placeholder="Yeni alışkanlık (ör. meditasyon)"
           className="flex-1 bg-[#262429] border border-[#3A373D] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#D9C36A]"
         />
+        <input
+          type="time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          style={{ colorScheme: "dark" }}
+          className="w-28 bg-[#262429] border border-[#3A373D] rounded-xl px-2 py-2 text-sm outline-none focus:border-[#D9C36A] text-[#EDEAE4]"
+        />
         <button onClick={addHabit} className="px-3 rounded-xl bg-[#D9C36A] text-[#1C1B1F]">
           <Plus size={18} />
         </button>
       </div>
+      <div className="text-[11px] text-[#6E7580] mb-5">Saat opsiyoneldir — bugün listesinde hatırlatma için.</div>
       {habits.length === 0 && <EmptyState text="Henüz alışkanlık eklenmedi." />}
       <div className="flex flex-col gap-1.5">
         {habits.map((h) => {
@@ -748,13 +787,16 @@ function HabitsView({ habits, setHabits, userId }) {
           return (
             <div key={h.id} className="flex items-center gap-3 bg-[#262429] border border-[#3A373D] rounded-lg px-3 py-2">
               <button
-                onClick={() => toggleToday(h.id)}
+                onClick={() => toggleHabitToday(h.id)}
                 className="w-5 h-5 rounded-full border flex items-center justify-center shrink-0"
                 style={{ borderColor: "#D9C36A", background: doneToday ? "#D9C36A" : "transparent" }}
               >
                 {doneToday && <Check size={12} color="#1C1B1F" />}
               </button>
-              <div className="flex-1 text-sm">{h.name}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm truncate">{h.name}</div>
+                {h.time && <div className="text-[11px] text-[#9C9791] mt-0.5">{h.time}</div>}
+              </div>
               <div className="flex items-center gap-1 text-xs text-[#D9C36A]">
                 <Flame size={13} /> {streak(h)}
               </div>

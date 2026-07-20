@@ -32,3 +32,6 @@ create policy "kendi alışkanlıkların" on habits
 alter publication supabase_realtime add table tasks;
 alter publication supabase_realtime add table habits;
 
+-- Alışkanlıklara saat özelliği (zaten tablo varsa sadece kolonu ekler):
+alter table habits add column if not exists time text;
+

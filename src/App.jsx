@@ -255,25 +255,11 @@ export default function App() {
             toggleDone={toggleDone}
             removeTask={removeTask}
             editTask={setEditingTask}
+            editingTask={editingTask}
+            updateTask={updateTask}
           />
         )}
-        {editingTask && (
-          <div
-            className="fixed inset-0 z-50 flex items-end md:items-center justify-center px-4 pb-4 md:pb-0"
-            style={{ background: "rgba(0,0,0,0.65)" }}
-            onClick={(e) => e.target === e.currentTarget && setEditingTask(null)}
-          >
-            <div className="w-full md:max-w-sm">
-              <TaskEditCard
-                task={editingTask}
-                onConfirm={updateTask}
-                onCancel={() => setEditingTask(null)}
-                confirmLabel="Kaydet"
-                showClose
-              />
-            </div>
-          </div>
-        )}
+
         {view === "calendar" && <CalendarView tasks={pending} />}
         {view === "habits" && <HabitsView habits={habits} setHabits={setHabits} userId={userId} />}
         {view === "focus" && <FocusView />}
@@ -397,7 +383,7 @@ function TodayView(props) {
   const {
     quick, setQuick, aiMode, setAiMode, aiBusy, aiError, onSubmit,
     pendingTask, confirmPending, cancelPending,
-    dated, undated, done, toggleDone, removeTask, editTask,
+    dated, undated, done, toggleDone, removeTask, editTask, editingTask, updateTask,
   } = props;
 
   return (
@@ -443,23 +429,35 @@ function TodayView(props) {
 
       {dated.length > 0 && (
         <Section title="Tarihli">
-          {dated.map((t) => (
-            <TaskRow key={t.id} t={t} onToggle={() => toggleDone(t.id)} onRemove={() => removeTask(t.id)} onEdit={() => editTask(t)} />
-          ))}
+          {dated.map((t) =>
+            editingTask?.id === t.id ? (
+              <TaskEditCard key={t.id} task={t} onConfirm={updateTask} onCancel={() => editTask(null)} confirmLabel="Kaydet" showClose />
+            ) : (
+              <TaskRow key={t.id} t={t} onToggle={() => toggleDone(t.id)} onRemove={() => removeTask(t.id)} onEdit={() => editTask(t)} />
+            )
+          )}
         </Section>
       )}
       {undated.length > 0 && (
         <Section title="Tarihsiz">
-          {undated.map((t) => (
-            <TaskRow key={t.id} t={t} onToggle={() => toggleDone(t.id)} onRemove={() => removeTask(t.id)} onEdit={() => editTask(t)} />
-          ))}
+          {undated.map((t) =>
+            editingTask?.id === t.id ? (
+              <TaskEditCard key={t.id} task={t} onConfirm={updateTask} onCancel={() => editTask(null)} confirmLabel="Kaydet" showClose />
+            ) : (
+              <TaskRow key={t.id} t={t} onToggle={() => toggleDone(t.id)} onRemove={() => removeTask(t.id)} onEdit={() => editTask(t)} />
+            )
+          )}
         </Section>
       )}
       {done.length > 0 && (
         <Section title={`Tamamlandı (${done.length})`} muted>
-          {done.map((t) => (
-            <TaskRow key={t.id} t={t} onToggle={() => toggleDone(t.id)} onRemove={() => removeTask(t.id)} onEdit={() => editTask(t)} />
-          ))}
+          {done.map((t) =>
+            editingTask?.id === t.id ? (
+              <TaskEditCard key={t.id} task={t} onConfirm={updateTask} onCancel={() => editTask(null)} confirmLabel="Kaydet" showClose />
+            ) : (
+              <TaskRow key={t.id} t={t} onToggle={() => toggleDone(t.id)} onRemove={() => removeTask(t.id)} onEdit={() => editTask(t)} />
+            )
+          )}
         </Section>
       )}
     </div>
@@ -554,12 +552,14 @@ function TaskEditCard({ task, onConfirm, onCancel, confirmLabel = "Onayla", show
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
+          style={{ colorScheme: "dark" }}
           className="flex-1 bg-[#1C1B1F] border border-[#3A373D] rounded-lg px-2 py-1.5 text-xs outline-none focus:border-[#D9C36A] text-[#EDEAE4]"
         />
         <input
           type="time"
           value={time}
           onChange={(e) => setTime(e.target.value)}
+          style={{ colorScheme: "dark" }}
           className="flex-1 bg-[#1C1B1F] border border-[#3A373D] rounded-lg px-2 py-1.5 text-xs outline-none focus:border-[#D9C36A] text-[#EDEAE4]"
         />
       </div>

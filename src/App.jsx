@@ -162,8 +162,8 @@ export default function App() {
     }
   }
 
-  function confirmPending() {
-    if (pendingTask) addTask(pendingTask);
+  function confirmPending(editedTask) {
+    addTask(editedTask);
     setPendingTask(null);
     setQuick("");
   }
@@ -258,11 +258,21 @@ export default function App() {
           />
         )}
         {editingTask && (
-          <EditModal
-            task={editingTask}
-            onSave={updateTask}
-            onClose={() => setEditingTask(null)}
-          />
+          <div
+            className="fixed inset-0 z-50 flex items-end md:items-center justify-center px-4 pb-4 md:pb-0"
+            style={{ background: "rgba(0,0,0,0.65)" }}
+            onClick={(e) => e.target === e.currentTarget && setEditingTask(null)}
+          >
+            <div className="w-full md:max-w-sm">
+              <TaskEditCard
+                task={editingTask}
+                onConfirm={updateTask}
+                onCancel={() => setEditingTask(null)}
+                confirmLabel="Kaydet"
+                showClose
+              />
+            </div>
+          </div>
         )}
         {view === "calendar" && <CalendarView tasks={pending} />}
         {view === "habits" && <HabitsView habits={habits} setHabits={setHabits} userId={userId} />}
@@ -417,29 +427,14 @@ function TodayView(props) {
         {aiError && <div className="text-xs text-[#C4634F] mt-1">{aiError}</div>}
       </div>
 
-      {/* AI parse preview - "fiş" receipt */}
+      {/* AI parse preview - editable */}
       {pendingTask && (
-        <div className="mb-5 border border-[#D9C36A] rounded-xl p-3 bg-[#262429]">
-          <div className="text-[11px] text-[#9C9791] mb-2 tracking-wide uppercase">Okundu</div>
-          <div className="text-sm mb-2">{pendingTask.title}</div>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {pendingTask.date && (
-              <Chip>{friendlyDate(pendingTask.date)}</Chip>
-            )}
-            {pendingTask.time && <Chip>{pendingTask.time}</Chip>}
-            <Chip color={PRIORITY_META[pendingTask.priority]?.color}>
-              {PRIORITY_META[pendingTask.priority]?.label}
-            </Chip>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={confirmPending} className="text-xs px-3 py-1.5 rounded-lg bg-[#D9C36A] text-[#1C1B1F] font-medium">
-              Ekle
-            </button>
-            <button onClick={cancelPending} className="text-xs px-3 py-1.5 rounded-lg border border-[#3A373D] text-[#9C9791]">
-              Vazgeç
-            </button>
-          </div>
-        </div>
+        <TaskEditCard
+          task={pendingTask}
+          onConfirm={confirmPending}
+          onCancel={cancelPending}
+          confirmLabel="Onayla"
+        />
       )}
 
       {dated.length === 0 && undated.length === 0 && (
@@ -511,95 +506,94 @@ function TaskRow({ t, onToggle, onRemove, onEdit }) {
           </div>
         )}
       </div>
-      <div className="flex gap-1 opacity-0 group-hover:opacity-100 shrink-0">
-        <button onClick={onEdit} className="text-[#6E7580] hover:text-[#D9C36A] transition-colors">
-          <Pencil size={13} />
+      <div className="flex gap-3 opacity-100 md:opacity-0 md:group-hover:opacity-100 shrink-0 transition-opacity">
+        <button onClick={onEdit} className="text-[#9C9791] active:text-[#D9C36A] md:hover:text-[#D9C36A] transition-colors p-1">
+          <Pencil size={14} />
         </button>
-        <button onClick={onRemove} className="text-[#6E7580] hover:text-[#C4634F] transition-colors">
-          <Trash2 size={13} />
+        <button onClick={onRemove} className="text-[#9C9791] active:text-[#C4634F] md:hover:text-[#C4634F] transition-colors p-1">
+          <Trash2 size={14} />
         </button>
       </div>
     </div>
   );
 }
 
-// ---------- Edit Modal ----------
-function EditModal({ task, onSave, onClose }) {
-  const [title, setTitle] = useState(task.title);
+// ---------- Task Edit Card (AI preview + edit shared component) ----------
+function TaskEditCard({ task, onConfirm, onCancel, confirmLabel = "Onayla", showClose = false }) {
+  const [title, setTitle] = useState(task.title || "");
   const [date, setDate] = useState(task.date || "");
   const [time, setTime] = useState(task.time || "");
   const [priority, setPriority] = useState(task.priority || "med");
 
-  function handleSave() {
+  function handleConfirm() {
     if (!title.trim()) return;
-    onSave({ id: task.id, title: title.trim(), date: date || null, time: time || null, priority });
+    onConfirm({ ...task, title: title.trim(), date: date || null, time: time || null, priority });
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.6)" }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="w-full md:max-w-sm bg-[#262429] rounded-t-2xl md:rounded-2xl p-5 border border-[#3A373D]">
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-sm font-medium">Görevi Düzenle</div>
-          <button onClick={onClose} className="text-[#6E7580]"><X size={18} /></button>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Görev başlığı"
-            className="w-full bg-[#1C1B1F] border border-[#3A373D] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#D9C36A]"
-          />
-          <div className="flex gap-2">
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="flex-1 bg-[#1C1B1F] border border-[#3A373D] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#D9C36A] text-[#EDEAE4]"
-            />
-            <input
-              type="time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              className="flex-1 bg-[#1C1B1F] border border-[#3A373D] rounded-xl px-3 py-2 text-sm outline-none focus:border-[#D9C36A] text-[#EDEAE4]"
-            />
-          </div>
-          <div className="flex gap-2">
-            {Object.entries(PRIORITY_META).map(([key, meta]) => (
-              <button
-                key={key}
-                onClick={() => setPriority(key)}
-                className="flex-1 py-1.5 rounded-lg text-xs border transition-colors"
-                style={{
-                  borderColor: priority === key ? meta.color : "#3A373D",
-                  color: priority === key ? meta.color : "#6E7580",
-                  background: priority === key ? meta.color + "22" : "transparent",
-                }}
-              >
-                {meta.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex gap-2 mt-4">
-          <button
-            onClick={handleSave}
-            className="flex-1 py-2 rounded-xl bg-[#D9C36A] text-[#1C1B1F] text-sm font-medium"
-          >
-            Kaydet
+    <div className="mb-5 border border-[#D9C36A] rounded-xl p-4 bg-[#262429]">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[11px] text-[#9C9791] tracking-wide uppercase">Görev Detayları</div>
+        {showClose && (
+          <button onClick={onCancel} className="text-[#6E7580] hover:text-[#EDEAE4]">
+            <X size={15} />
           </button>
+        )}
+      </div>
+
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Görev başlığı"
+        autoFocus
+        className="w-full bg-[#1C1B1F] border border-[#3A373D] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#D9C36A] mb-3"
+      />
+
+      <div className="flex gap-2 mb-3">
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="flex-1 bg-[#1C1B1F] border border-[#3A373D] rounded-lg px-2 py-1.5 text-xs outline-none focus:border-[#D9C36A] text-[#EDEAE4]"
+        />
+        <input
+          type="time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          className="flex-1 bg-[#1C1B1F] border border-[#3A373D] rounded-lg px-2 py-1.5 text-xs outline-none focus:border-[#D9C36A] text-[#EDEAE4]"
+        />
+      </div>
+
+      <div className="flex gap-2 mb-4">
+        {Object.entries(PRIORITY_META).map(([key, meta]) => (
           <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl border border-[#3A373D] text-[#9C9791] text-sm"
+            key={key}
+            onClick={() => setPriority(key)}
+            className="flex-1 py-1.5 rounded-lg text-xs border transition-colors"
+            style={{
+              borderColor: priority === key ? meta.color : "#3A373D",
+              color: priority === key ? meta.color : "#6E7580",
+              background: priority === key ? meta.color + "22" : "transparent",
+            }}
           >
-            İptal
+            {meta.label}
           </button>
-        </div>
+        ))}
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          onClick={handleConfirm}
+          className="flex-1 text-xs py-2 rounded-lg bg-[#D9C36A] text-[#1C1B1F] font-medium"
+        >
+          {confirmLabel}
+        </button>
+        <button
+          onClick={onCancel}
+          className="text-xs px-4 py-2 rounded-lg border border-[#3A373D] text-[#9C9791]"
+        >
+          Vazgeç
+        </button>
       </div>
     </div>
   );

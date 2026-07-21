@@ -142,11 +142,16 @@ export default function App() {
     [userId]
   );
 
-  async function handleSubmit() {
+  async function handleSubmit(extraFields = {}) {
     const text = quick.trim();
     if (!text) return;
     if (!aiMode) {
-      addTask({ title: text, date: todayISO(), priority: "med" });
+      addTask({
+        title: text,
+        date: extraFields.date || null,
+        time: extraFields.time || null,
+        priority: extraFields.priority || "med",
+      });
       setQuick("");
       return;
     }
@@ -415,6 +420,15 @@ function TodayView(props) {
   const today = todayISO();
   const pendingHabits = (habits || []).filter((h) => !h.doneDates.includes(today));
 
+  // Manuel mod alanları
+  const [manualDate, setManualDate] = useState("");
+  const [manualTime, setManualTime] = useState("");
+  const [manualPriority, setManualPriority] = useState("med");
+
+  function handleManualSubmit() {
+    onSubmit({ date: manualDate || null, time: manualTime || null, priority: manualPriority });
+  }
+
   return (
     <div className="px-5 pt-4 md:pt-8 max-w-2xl w-full">
       {/* quick add */}
@@ -431,14 +445,49 @@ function TodayView(props) {
           <input
             value={quick}
             onChange={(e) => setQuick(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && onSubmit()}
-            placeholder={aiMode ? "\"Perşembe saat 2'de doktor randevusu\" gibi yaz..." : "Görev ekle..."}
+            onKeyDown={(e) => e.key === "Enter" && (aiMode ? onSubmit() : handleManualSubmit())}
+            placeholder={aiMode ? "\"Perşembe saat 2'de doktor randevusu\" gibi yaz..." : "Görev başlığı..."}
             className="flex-1 bg-transparent outline-none text-sm placeholder-[#6E7580]"
           />
-          <button onClick={onSubmit} disabled={aiBusy} className="shrink-0 text-[#EDEAE4]">
+          <button onClick={aiMode ? onSubmit : handleManualSubmit} disabled={aiBusy} className="shrink-0 text-[#EDEAE4]">
             {aiBusy ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
           </button>
         </div>
+
+        {/* Manuel mod — tarih/saat/öncelik */}
+        {!aiMode && (
+          <div className="mt-2 flex flex-wrap gap-2 items-center">
+            <input
+              type="date"
+              value={manualDate}
+              onChange={(e) => setManualDate(e.target.value)}
+              style={{ colorScheme: "dark" }}
+              className="bg-[#262429] border border-[#3A373D] rounded-lg px-2 py-1.5 text-xs outline-none focus:border-[#D9C36A] text-[#EDEAE4]"
+            />
+            <input
+              type="time"
+              value={manualTime}
+              onChange={(e) => setManualTime(e.target.value)}
+              style={{ colorScheme: "dark" }}
+              className="bg-[#262429] border border-[#3A373D] rounded-lg px-2 py-1.5 text-xs outline-none focus:border-[#D9C36A] text-[#EDEAE4]"
+            />
+            {Object.entries(PRIORITY_META).map(([key, meta]) => (
+              <button
+                key={key}
+                onClick={() => setManualPriority(key)}
+                className="px-3 py-1.5 rounded-lg text-xs border transition-colors"
+                style={{
+                  borderColor: manualPriority === key ? meta.color : "#3A373D",
+                  color: manualPriority === key ? meta.color : "#6E7580",
+                  background: manualPriority === key ? meta.color + "22" : "transparent",
+                }}
+              >
+                {meta.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {aiError && <div className="text-xs text-[#C4634F] mt-1">{aiError}</div>}
       </div>
 

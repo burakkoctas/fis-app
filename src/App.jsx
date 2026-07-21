@@ -230,8 +230,15 @@ export default function App() {
       {/* Sidebar (desktop) */}
       <aside className="hidden md:flex md:w-56 md:flex-col border-r border-[#3A373D] p-5 gap-1">
         <div className="mb-6">
-          <div className="text-2xl" style={{ fontFamily: "Georgia, serif" }}>Fiş</div>
-          <div className="text-xs text-[#9C9791] mt-1">yapılacaklar, sesle & yazıyla</div>
+          <div className="flex items-center gap-2">
+            <img
+              src="/logo.png"
+              alt="VakVak logo"
+              className="w-7 h-7 object-contain"
+            />
+            <div className="text-2xl" style={{ fontFamily: "Georgia, serif" }}>VakVak</div>
+          </div>
+          <div className="text-xs text-[#9C9791] mt-1">yapılacaklar, sesle &amp; yazıyla</div>
         </div>
         {NAV.map((n) => (
           <NavButton key={n.key} n={n} active={view === n.key} onClick={() => setView(n.key)} />
@@ -244,7 +251,14 @@ export default function App() {
       {/* Main content */}
       <main className="flex-1 flex flex-col pb-20 md:pb-0">
         <header className="px-5 pt-6 pb-4 md:hidden flex items-center justify-between">
-          <div className="text-2xl" style={{ fontFamily: "Georgia, serif" }}>Fiş</div>
+          <div className="flex items-center gap-2">
+            <img
+              src="/logo.png"
+              alt="VakVak logo"
+              className="w-6 h-6 object-contain"
+            />
+            <div className="text-2xl" style={{ fontFamily: "Georgia, serif" }}>VakVak</div>
+          </div>
         </header>
 
         {view === "today" && (

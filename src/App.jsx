@@ -429,6 +429,7 @@ function TasksView(props) {
     pendingTask, confirmPending, cancelPending,
     tasks, toggleDone, removeTask, editTask, editingTask, updateTask,
     habits, toggleHabitToday,
+    showHistoryDrawer, setShowHistoryDrawer,
   } = props;
 
   const today   = todayISO();

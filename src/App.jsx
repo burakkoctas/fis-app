@@ -525,10 +525,10 @@ function TasksView(props) {
             <Section title="Yarın">{tomorrowTasks.map(renderRow)}</Section>
           )}
           {futureTasks.length > 0 && (
-            <Section title="\u0130leri Tarihli">{futureTasks.map(renderRow)}</Section>
+            <Section title="İleri Tarihli">{futureTasks.map(renderRow)}</Section>
           )}
           {pendingHabits.length > 0 && (
-            <Section title="Al\u0131\u015fkanl\u0131klar">
+            <Section title="Alışkanlıklar">
               {pendingHabits.map(h => (
                 <div key={h.id} onClick={() => toggleHabitToday(h.id)}
                   className="flex items-center gap-3 bg-[#262429] border border-[#3A373D] rounded-lg px-3 py-2 cursor-pointer active:opacity-70">
@@ -543,7 +543,7 @@ function TasksView(props) {
             </Section>
           )}
           {doneTasks.length > 0 && (
-            <Section title={`Tamamland\u0131 (${doneTasks.length})`} muted>
+            <Section title={`Tamamlandı (${doneTasks.length})`} muted>
               {doneTasks.map(renderRow)}
             </Section>
           )}
@@ -555,12 +555,12 @@ function TasksView(props) {
         <div className="px-4 pt-8 pb-4 overflow-y-auto flex-1">
           {overdue.filter(t => !t.done).length > 0 && (
             <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: "#C4634F22", borderLeft: "3px solid #C4634F", color: "#E8957A" }}>
-              {overdue.filter(t => !t.done).length} tamamlanmam\u0131\u015f ge\u00e7mi\u015f g\u00f6rev
+              {overdue.filter(t => !t.done).length} tamamlanmamış geçmiş görev
             </div>
           )}
-          <div className="text-xs uppercase tracking-wide text-[#6E7580] mb-3">Ge\u00e7mi\u015f G\u00f6revler</div>
+          <div className="text-xs uppercase tracking-wide text-[#6E7580] mb-3">Geçmiş Görevler</div>
           {overdue.length === 0 ? (
-            <div className="text-xs text-[#6E7580] text-center py-8">Ge\u00e7mi\u015f g\u00f6rev yok \u2714</div>
+            <div className="text-xs text-[#6E7580] text-center py-8">Geçmiş görev yok ✓</div>
           ) : (
             <div className="flex flex-col gap-1.5">
               {overdue.map(t => (
@@ -838,6 +838,10 @@ function HabitsView({ habits, setHabits, userId, toggleHabitToday }) {
   function streak(h) {
     let s = 0;
     let d = new Date();
+    // Bugün henüz tamamlanmamışsa dünden say — gün içinde streak korunsun
+    if (!h.doneDates.includes(dateKey(d))) {
+      d.setDate(d.getDate() - 1);
+    }
     while (h.doneDates.includes(dateKey(d))) {
       s++;
       d.setDate(d.getDate() - 1);

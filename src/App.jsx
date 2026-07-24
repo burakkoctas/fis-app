@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Pencil,
+  Clock,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
@@ -97,6 +98,7 @@ export default function App() {
   const [loaded, setLoaded] = useState(false);
   const [quick, setQuick] = useState("");
   const [aiMode, setAiMode] = useState(true);
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState(null);
   const [pendingTask, setPendingTask] = useState(null); // parsed preview awaiting confirm
@@ -266,6 +268,15 @@ export default function App() {
             />
             <div className="text-2xl" style={{ fontFamily: "Georgia, serif" }}>VakVak</div>
           </div>
+          {view === "tasks" && (
+            <button
+              onClick={() => setShowHistoryDrawer(true)}
+              className="text-[#9C9791] p-2 rounded-lg active:bg-[#262429]"
+              title="Geçmiş Görevler"
+            >
+              <Clock size={20} />
+            </button>
+          )}
         </header>
 
         {view === "tasks" && (
@@ -288,6 +299,8 @@ export default function App() {
             updateTask={updateTask}
             habits={habits}
             toggleHabitToday={toggleHabitToday}
+            showHistoryDrawer={showHistoryDrawer}
+            setShowHistoryDrawer={setShowHistoryDrawer}
           />
         )}
 

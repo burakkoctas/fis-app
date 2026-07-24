@@ -34,11 +34,17 @@ function friendlyDate(iso) {
   if (!iso) return null;
   const d = new Date(iso + "T00:00:00");
   const t = new Date();
-  const tomorrow = new Date(t);
-  tomorrow.setDate(t.getDate() + 1);
+  const tom = new Date(t);
+  tom.setDate(t.getDate() + 1);
   if (dateKey(d) === dateKey(t)) return "Bugün";
-  if (dateKey(d) === dateKey(tomorrow)) return "Yarın";
+  if (dateKey(d) === dateKey(tom)) return "Yarın";
   return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+}
+
+function tomorrowISO() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return dateKey(d);
 }
 
 const PRIORITY_META = {
@@ -87,7 +93,7 @@ export default function App() {
   const [session, setSession] = useState(undefined); // undefined = loading, null = logged out
   const [tasks, setTasks] = useState([]);
   const [habits, setHabits] = useState([]);
-  const [view, setView] = useState("today");
+  const [view, setView] = useState("tasks");
   const [loaded, setLoaded] = useState(false);
   const [quick, setQuick] = useState("");
   const [aiMode, setAiMode] = useState(true);
@@ -208,12 +214,8 @@ export default function App() {
   }
 
   const pending = tasks.filter((t) => !t.done);
-  const dated = pending.filter((t) => t.date).sort((a, b) => (a.date + (a.time || "")) < (b.date + (b.time || "")) ? -1 : 1);
-  const undated = pending.filter((t) => !t.date);
-  const done = tasks.filter((t) => t.done);
-
   const NAV = [
-    { key: "today", label: "Bugün", icon: ListTodo },
+    { key: "tasks", label: "Görevler", icon: ListTodo },
     { key: "calendar", label: "Takvim", icon: CalendarIcon },
     { key: "habits", label: "Alışkanlık", icon: Flame },
     { key: "focus", label: "Odak", icon: Timer },
@@ -254,7 +256,7 @@ export default function App() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 flex flex-col pb-20 md:pb-0">
+      <main className="flex-1 flex flex-col pb-20 md:pb-0 overflow-hidden">
         <header className="px-5 pt-6 pb-4 md:hidden flex items-center justify-between">
           <div className="flex items-center gap-2">
             <img
@@ -266,8 +268,8 @@ export default function App() {
           </div>
         </header>
 
-        {view === "today" && (
-          <TodayView
+        {view === "tasks" && (
+          <TasksView
             quick={quick}
             setQuick={setQuick}
             aiMode={aiMode}
@@ -278,9 +280,7 @@ export default function App() {
             pendingTask={pendingTask}
             confirmPending={confirmPending}
             cancelPending={() => setPendingTask(null)}
-            dated={dated}
-            undated={undated}
-            done={done}
+            tasks={tasks}
             toggleDone={toggleDone}
             removeTask={removeTask}
             editTask={setEditingTask}
@@ -409,157 +409,181 @@ function NavButton({ n, active, onClick }) {
   );
 }
 
-// ---------- Today view ----------
-function TodayView(props) {
+// ---------- Tasks view (ana görev ekranı) ----------
+function TasksView(props) {
   const {
     quick, setQuick, aiMode, setAiMode, aiBusy, aiError, onSubmit,
     pendingTask, confirmPending, cancelPending,
-    dated, undated, done, toggleDone, removeTask, editTask, editingTask, updateTask,
+    tasks, toggleDone, removeTask, editTask, editingTask, updateTask,
     habits, toggleHabitToday,
   } = props;
-  const today = todayISO();
-  const pendingHabits = (habits || []).filter((h) => !h.doneDates.includes(today));
 
-  // Manuel mod alanları
+  const today   = todayISO();
+  const tomorrow = tomorrowISO();
+  const now     = new Date();
+
+  // Geçmiş görev = tarihi bugünden önce VEYA bugün+saati geçmiş, tamamlanmamış, sadece task
+  function isOverdue(t) {
+    if (t.done || !t.date) return false;
+    if (t.date < today) return true;
+    if (t.date === today && t.time) {
+      const [h, m] = t.time.split(":").map(Number);
+      const taskTime = new Date(); taskTime.setHours(h, m, 0, 0);
+      return taskTime < now;
+    }
+    return false;
+  }
+
+  const overdue       = tasks.filter(t => isOverdue(t));
+  const todayTasks    = tasks.filter(t => !t.done && !isOverdue(t) && t.date === today);
+  const tomorrowTasks = tasks.filter(t => !t.done && t.date === tomorrow);
+  const futureTasks   = tasks.filter(t => !t.done && !isOverdue(t) && t.date !== today && t.date !== tomorrow && (t.date > tomorrow || !t.date));
+  const doneTasks     = tasks.filter(t => t.done);
+  const pendingHabits = (habits || []).filter(h => !h.doneDates.includes(today));
+
+  // Manuel mod state
   const [manualDate, setManualDate] = useState("");
   const [manualTime, setManualTime] = useState("");
   const [manualPriority, setManualPriority] = useState("med");
-
   function handleManualSubmit() {
     onSubmit({ date: manualDate || null, time: manualTime || null, priority: manualPriority });
   }
 
+  // Task row helper (inlined)
+  function renderRow(t) {
+    return editingTask?.id === t.id ? (
+      <TaskEditCard key={t.id} task={t} onConfirm={updateTask} onCancel={() => editTask(null)} confirmLabel="Kaydet" showClose />
+    ) : (
+      <TaskRow key={t.id} t={t} onToggle={() => toggleDone(t.id)} onRemove={() => removeTask(t.id)} onEdit={() => editTask(t)} />
+    );
+  }
+
   return (
-    <div className="px-5 pt-4 md:pt-8 max-w-2xl w-full">
-      {/* quick add */}
-      <div className="mb-4">
-        <div className="flex items-center gap-2 bg-[#262429] border border-[#3A373D] rounded-xl px-3 py-2 focus-within:border-[#D9C36A] transition-colors">
-          <button
-            onClick={() => setAiMode((v) => !v)}
-            title={aiMode ? "AI ayrıştırma açık" : "AI ayrıştırma kapalı"}
-            className="shrink-0"
-            style={{ color: aiMode ? "#D9C36A" : "#6E7580" }}
-          >
-            <Sparkles size={18} />
-          </button>
-          <input
-            value={quick}
-            onChange={(e) => setQuick(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && (aiMode ? onSubmit() : handleManualSubmit())}
-            placeholder={aiMode ? "\"Perşembe saat 2'de doktor randevusu\" gibi yaz..." : "Görev başlığı..."}
-            className="flex-1 bg-transparent outline-none text-sm placeholder-[#6E7580]"
-          />
-          <button onClick={aiMode ? onSubmit : handleManualSubmit} disabled={aiBusy} className="shrink-0 text-[#EDEAE4]">
-            {aiBusy ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
-          </button>
+    <div className="flex flex-1 overflow-hidden">
+
+      {/* Sol: görev segmentleri */}
+      <div className="flex-1 min-w-0 overflow-y-auto px-5 pt-4 md:pt-8 pb-6">
+        {/* Hızlı ekle */}
+        <div className="mb-4 max-w-2xl">
+          <div className="flex items-center gap-2 bg-[#262429] border border-[#3A373D] rounded-xl px-3 py-2 focus-within:border-[#D9C36A] transition-colors">
+            <button
+              onClick={() => setAiMode(v => !v)}
+              title={aiMode ? "AI açık" : "AI kapalı"}
+              className="shrink-0"
+              style={{ color: aiMode ? "#D9C36A" : "#6E7580" }}
+            >
+              <Sparkles size={18} />
+            </button>
+            <input
+              value={quick}
+              onChange={e => setQuick(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && (aiMode ? onSubmit() : handleManualSubmit())}
+              placeholder={aiMode ? "\"Per\u015fembe saat 2'de doktor randevusu\" gibi yaz..." : "Görev başlığı..."}
+              className="flex-1 bg-transparent outline-none text-sm placeholder-[#6E7580]"
+            />
+            <button onClick={aiMode ? onSubmit : handleManualSubmit} disabled={aiBusy} className="shrink-0 text-[#EDEAE4]">
+              {aiBusy ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
+            </button>
+          </div>
+          {!aiMode && (
+            <div className="mt-2 flex flex-wrap gap-2 items-center">
+              <input type="date" value={manualDate} onChange={e => setManualDate(e.target.value)}
+                style={{ colorScheme: "dark" }}
+                className="bg-[#262429] border border-[#3A373D] rounded-lg px-2 py-1.5 text-xs outline-none focus:border-[#D9C36A] text-[#EDEAE4]" />
+              <input type="time" value={manualTime} onChange={e => setManualTime(e.target.value)}
+                style={{ colorScheme: "dark" }}
+                className="bg-[#262429] border border-[#3A373D] rounded-lg px-2 py-1.5 text-xs outline-none focus:border-[#D9C36A] text-[#EDEAE4]" />
+              {Object.entries(PRIORITY_META).map(([key, meta]) => (
+                <button key={key} onClick={() => setManualPriority(key)}
+                  className="px-3 py-1.5 rounded-lg text-xs border transition-colors"
+                  style={{
+                    borderColor: manualPriority === key ? meta.color : "#3A373D",
+                    color: manualPriority === key ? meta.color : "#6E7580",
+                    background: manualPriority === key ? meta.color + "22" : "transparent",
+                  }}>{meta.label}</button>
+              ))}
+            </div>
+          )}
+          {aiError && <div className="text-xs text-[#C4634F] mt-1">{aiError}</div>}
         </div>
 
-        {/* Manuel mod — tarih/saat/öncelik */}
-        {!aiMode && (
-          <div className="mt-2 flex flex-wrap gap-2 items-center">
-            <input
-              type="date"
-              value={manualDate}
-              onChange={(e) => setManualDate(e.target.value)}
-              style={{ colorScheme: "dark" }}
-              className="bg-[#262429] border border-[#3A373D] rounded-lg px-2 py-1.5 text-xs outline-none focus:border-[#D9C36A] text-[#EDEAE4]"
-            />
-            <input
-              type="time"
-              value={manualTime}
-              onChange={(e) => setManualTime(e.target.value)}
-              style={{ colorScheme: "dark" }}
-              className="bg-[#262429] border border-[#3A373D] rounded-lg px-2 py-1.5 text-xs outline-none focus:border-[#D9C36A] text-[#EDEAE4]"
-            />
-            {Object.entries(PRIORITY_META).map(([key, meta]) => (
-              <button
-                key={key}
-                onClick={() => setManualPriority(key)}
-                className="px-3 py-1.5 rounded-lg text-xs border transition-colors"
-                style={{
-                  borderColor: manualPriority === key ? meta.color : "#3A373D",
-                  color: manualPriority === key ? meta.color : "#6E7580",
-                  background: manualPriority === key ? meta.color + "22" : "transparent",
-                }}
-              >
-                {meta.label}
-              </button>
-            ))}
+        {pendingTask && (
+          <div className="max-w-2xl">
+            <TaskEditCard task={pendingTask} onConfirm={confirmPending} onCancel={cancelPending} confirmLabel="Onayla" />
           </div>
         )}
 
-        {aiError && <div className="text-xs text-[#C4634F] mt-1">{aiError}</div>}
+        <div className="max-w-2xl">
+          {todayTasks.length === 0 && tomorrowTasks.length === 0 && futureTasks.length === 0 && pendingHabits.length === 0 && doneTasks.length === 0 && (
+            <EmptyState text="Henüz görev yok. Yukarıdan bir tane ekle." />
+          )}
+
+          {todayTasks.length > 0 && (
+            <Section title="Bugün">{todayTasks.map(renderRow)}</Section>
+          )}
+          {tomorrowTasks.length > 0 && (
+            <Section title="Yarın">{tomorrowTasks.map(renderRow)}</Section>
+          )}
+          {futureTasks.length > 0 && (
+            <Section title="\u0130leri Tarihli">{futureTasks.map(renderRow)}</Section>
+          )}
+          {pendingHabits.length > 0 && (
+            <Section title="Al\u0131\u015fkanl\u0131klar">
+              {pendingHabits.map(h => (
+                <div key={h.id} onClick={() => toggleHabitToday(h.id)}
+                  className="flex items-center gap-3 bg-[#262429] border border-[#3A373D] rounded-lg px-3 py-2 cursor-pointer active:opacity-70">
+                  <div className="w-5 h-5 rounded-full border-2 shrink-0" style={{ borderColor: "#D9C36A" }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm truncate">{h.name}</div>
+                    {h.time && <div className="text-[11px] text-[#9C9791] mt-0.5">{h.time}</div>}
+                  </div>
+                  <Flame size={13} style={{ color: "#D9C36A", opacity: 0.6 }} />
+                </div>
+              ))}
+            </Section>
+          )}
+          {doneTasks.length > 0 && (
+            <Section title={`Tamamland\u0131 (${doneTasks.length})`} muted>
+              {doneTasks.map(renderRow)}
+            </Section>
+          )}
+        </div>
       </div>
 
-      {/* AI parse preview - editable */}
-      {pendingTask && (
-        <TaskEditCard
-          task={pendingTask}
-          onConfirm={confirmPending}
-          onCancel={cancelPending}
-          confirmLabel="Onayla"
-        />
-      )}
-
-      {dated.length === 0 && undated.length === 0 && (
-        <EmptyState text="Henüz görev yok. Yukarıdan bir tane ekle." />
-      )}
-
-      {dated.length > 0 && (
-        <Section title="Tarihli">
-          {dated.map((t) =>
-            editingTask?.id === t.id ? (
-              <TaskEditCard key={t.id} task={t} onConfirm={updateTask} onCancel={() => editTask(null)} confirmLabel="Kaydet" showClose />
-            ) : (
-              <TaskRow key={t.id} t={t} onToggle={() => toggleDone(t.id)} onRemove={() => removeTask(t.id)} onEdit={() => editTask(t)} />
-            )
-          )}
-        </Section>
-      )}
-      {undated.length > 0 && (
-        <Section title="Tarihsiz">
-          {undated.map((t) =>
-            editingTask?.id === t.id ? (
-              <TaskEditCard key={t.id} task={t} onConfirm={updateTask} onCancel={() => editTask(null)} confirmLabel="Kaydet" showClose />
-            ) : (
-              <TaskRow key={t.id} t={t} onToggle={() => toggleDone(t.id)} onRemove={() => removeTask(t.id)} onEdit={() => editTask(t)} />
-            )
-          )}
-        </Section>
-      )}
-      {done.length > 0 && (
-        <Section title={`Tamamlandı (${done.length})`} muted>
-          {done.map((t) =>
-            editingTask?.id === t.id ? (
-              <TaskEditCard key={t.id} task={t} onConfirm={updateTask} onCancel={() => editTask(null)} confirmLabel="Kaydet" showClose />
-            ) : (
-              <TaskRow key={t.id} t={t} onToggle={() => toggleDone(t.id)} onRemove={() => removeTask(t.id)} onEdit={() => editTask(t)} />
-            )
-          )}
-        </Section>
-      )}
-
-      {pendingHabits.length > 0 && (
-        <Section title="Alışkanlıklar">
-          {pendingHabits.map((h) => (
-            <div
-              key={h.id}
-              onClick={() => toggleHabitToday(h.id)}
-              className="flex items-center gap-3 bg-[#262429] border border-[#3A373D] rounded-lg px-3 py-2 cursor-pointer active:opacity-70"
-            >
-              <div
-                className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0"
-                style={{ borderColor: "#D9C36A" }}
-              />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm truncate">{h.name}</div>
-                {h.time && <div className="text-[11px] text-[#9C9791] mt-0.5">{h.time}</div>}
-              </div>
-              <Flame size={13} style={{ color: "#D9C36A", opacity: 0.6 }} />
+      {/* Sağ: Geçmiş Görevler (sadece masaüstü) */}
+      <div className="hidden md:flex flex-col w-72 shrink-0 border-l border-[#3A373D] overflow-hidden">
+        <div className="px-4 pt-8 pb-4 overflow-y-auto flex-1">
+          {overdue.filter(t => !t.done).length > 0 && (
+            <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: "#C4634F22", borderLeft: "3px solid #C4634F", color: "#E8957A" }}>
+              {overdue.filter(t => !t.done).length} tamamlanmam\u0131\u015f ge\u00e7mi\u015f g\u00f6rev
             </div>
-          ))}
-        </Section>
-      )}
+          )}
+          <div className="text-xs uppercase tracking-wide text-[#6E7580] mb-3">Ge\u00e7mi\u015f G\u00f6revler</div>
+          {overdue.length === 0 ? (
+            <div className="text-xs text-[#6E7580] text-center py-8">Ge\u00e7mi\u015f g\u00f6rev yok \u2714</div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {overdue.map(t => (
+                <div key={t.id} className="flex items-start gap-2 bg-[#262429] border border-[#3A373D] rounded-lg px-3 py-2 opacity-70">
+                  <button
+                    onClick={() => toggleDone(t.id)}
+                    className="w-4 h-4 mt-0.5 rounded-full border shrink-0"
+                    style={{ borderColor: "#C4634F", background: t.done ? "#C4634F" : "transparent" }}
+                  >
+                    {t.done && <Check size={10} color="#1C1B1F" />}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs truncate ${t.done ? "line-through text-[#6E7580]" : ""}`}>{t.title}</div>
+                    <div className="text-[10px] text-[#C4634F] mt-0.5">
+                      {t.date && friendlyDate(t.date)}{t.time && ` ${t.time}`}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
